@@ -64,3 +64,5 @@ qubic
 # RStudio
 *.Rproj
 .Rproj.*
+
+*.chars
