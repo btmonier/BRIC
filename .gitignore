@@ -66,3 +66,5 @@ qubic
 .Rproj.*
 
 *.chars
+
+*.rules
