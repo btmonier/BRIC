@@ -1,20 +1,62 @@
+#--------------------------------------------------------------------
+# Script Name:   clustering.R
+# Description:   Create clustering data objects for graph production
+# Author:        Brandon Monier, Qin Ma, Juan Xie, Anjun Ma
+# Created:       2019-02-01 12:08:30
+# Last Modified:
+#--------------------------------------------------------------------
 
+#--------------------------------------------------------------------
+# Detailed Purpose:
+#    The main purpose of this Rscript is to generate objects for
+#    downstream clustering analyses.
+#--------------------------------------------------------------------
+
+# === Preamble ======================================================
+
+## Load packages
 library(igraph)
 library(mclust)
 library(MCL)
 library(clues)
 library(anocva)
 
-RAW <-read.table("example_data/Yan_RPKM",header=T,sep="\t")   # expression data
-CellNum <-dim(RAW)[2]-1  # the number of cells
-
-
+## Load data
+# meta <- read.csv("example_data/col-data-scrna.csv", header = TRUE)
+RAW <- read.table("example_data/Yan_RPKM",header=T,sep="\t")   # expression data
+CellNum  <- dim(RAW)[2]-1  # the number of cells
 Graph <-read.csv('example_data/Yan_RPKM_graph.csv',header=T,sep=",")
-names(Graph) <-c('Node1','Node2','weight')
-G <-graph.data.frame(Graph,directed = FALSE)  # convert file into graph
+
+## Parsing
+names(Graph) <- c('Node1','Node2','weight')
+G <- graph.data.frame(Graph,directed = FALSE)  # convert file into graph
 A <- as_adjacency_matrix(G,type="both",attr="weight",names=TRUE,sparse=FALSE)  # convert graph into adjacency matrix
-V_name <-rownames(A)   # the vertix
-Covered <-length(V_name)  # the #of covered cells
+V_name <- rownames(A)   # the vertix
+Covered <- length(V_name)  # the #of covered cells
+
+## Generate adjacency matrix
+meta <- data.frame(
+    id = as.character(unique(as.character(Graph$Node1))),
+    type = as.factor(
+        sub(
+            pattern = "_(.*)$",
+            replacement = "",
+            x = levels(Graph$Node1)
+        )
+    )
+)
+adjMat <- igraph::get.adjacency(
+    graph = igraph::graph.edgelist(
+        el = as.matrix(Graph[, 1:2]),
+        directed = FALSE
+    )
+)
+adjMat <- as.matrix(adjMat)
+adjMat2 <- igraph::graph_from_incidence_matrix(adjMat)
+
+
+
+# === Functions =====================================================
 
 ## MCL clustering on adjacency matrix
 MCL_cs <-function(A){
@@ -40,7 +82,7 @@ MCL_cs <-function(A){
                 temp[index,n] <-1
                 TEMP <-TEMP+temp[,n]%o%temp[,n]
             }
-        MATRIX <-MATRIX+TEMP
+            MATRIX <-MATRIX+TEMP
         }
         MATRIX <-MATRIX/length(CAN_I)
         rownames(MATRIX) <-colnames(MATRIX) <-rownames(A)
@@ -55,7 +97,7 @@ MCL_cs <-function(A){
             label <-df_cell_label$cluster
         }
     }
-return(label)
+    return(label)
 }
 
 ## Spectral clustering on adjacency matrix, need provide the number of clusters
@@ -84,6 +126,9 @@ CLUSTERING <-function(A,K,method){
     }
 }
 
+
+
+# ==== Process ======================================================
 labels <-CLUSTERING(A = A, method = 'MCL_cs') # get the predicted cell cluster labels
 # or label <-CLUSTERING(A,7,'SC_cs')
 
@@ -95,7 +140,7 @@ aa <-names(labels)
 bb <-target$Cell_type
 
 # if consistent, continue to calculate ARI ect
-if (identical(sort(aa),sort(as.character(bb)))=='TRUE'){
+if (identical(sort(aa),sort(as.character(bb)))=='TRUE') {
   sorted <-labels[match(target$Cell_type,names(labels))] # sort the predicted label
 
   ARI <-adjustedRandIndex(sorted,target$Cluster)
@@ -104,8 +149,7 @@ if (identical(sort(aa),sort(as.character(bb)))=='TRUE'){
   JI <-adjustedRand(sorted,target$Cluster,randMethod='Jaccard')
   df <-data.frame(ARI=ARI, RandIndex=RI,FolkesMallow=FM, Jaccard=JI)
   df
-
-}else{
+} else {
   print('Cell names is not consistent, please double check !')
 }
 
